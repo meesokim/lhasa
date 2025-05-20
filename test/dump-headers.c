@@ -82,11 +82,49 @@ static void print_header(LHAFileHeader *header)
 	}
 }
 
+// 파일을 메모리로 로드하는 함수 추가
+static char* load_file_to_memory(const char* filename, size_t* size)
+{
+    FILE* file;
+    char* buffer;
+    long file_size;
+    
+    file = fopen(filename, "rb");
+    if (file == NULL) {
+        return NULL;
+    }
+    
+    // 파일 크기 확인
+    fseek(file, 0, SEEK_END);
+    file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    // 메모리 할당
+    buffer = (char*)malloc(file_size);
+    if (buffer == NULL) {
+        fclose(file);
+        return NULL;
+    }
+    
+    // 파일 읽기
+    if (fread(buffer, 1, file_size, file) != (size_t)file_size) {
+        free(buffer);
+        fclose(file);
+        return NULL;
+    }
+    
+    fclose(file);
+    *size = (size_t)file_size;
+    return buffer;
+}
+
 int main(int argc, char *argv[])
 {
 	LHAInputStream *stream;
 	LHABasicReader *reader;
 	LHAFileHeader *header;
+	char* file_data;
+	size_t file_size;
 
 	if (argc < 2) {
 		printf("Usage: %s <filename>\n", argv[0]);
@@ -97,9 +135,10 @@ int main(int argc, char *argv[])
 	// so that it can be compared correctly on Windows.
 
 	lha_arch_set_binary(stdout);
-
-	stream = lha_input_stream_from(argv[1]);
-
+	// 파일을 메모리로 로드
+	file_data = load_file_to_memory(argv[1], &file_size);
+	stream = lha_input_stream_from_mem(file_data, file_size);
+	
 	if (stream == NULL) {
 		fprintf(stderr, "Failed to open '%s'\n", argv[1]);
 		exit(-1);

@@ -124,6 +124,8 @@ LHAInputStream *lha_input_stream_from_FILE(FILE *stream);
  * @param stream       The input stream.
  */
 
+LHAInputStream *lha_input_stream_from_mem(const char *data, size_t length);
+
 void lha_input_stream_free(LHAInputStream *stream);
 
 #ifdef __cplusplus

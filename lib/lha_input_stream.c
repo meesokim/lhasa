@@ -378,6 +378,89 @@ static const LHAInputStreamType file_source_unowned = {
 	NULL
 };
 
+// 메모리 소스를 위한 구조체
+typedef struct {
+	const uint8_t *data;
+	size_t length;
+	size_t pos;
+} MemorySource;
+
+// 메모리 소스에서 읽기
+static int memory_source_read(void *handle, void *buf, size_t buf_len)
+{
+	MemorySource *source = (MemorySource *) handle;
+	size_t bytes_remaining;
+	size_t bytes_to_read;
+
+	bytes_remaining = source->length - source->pos;
+	
+	if (bytes_remaining == 0) {
+		return 0;  // EOF
+	}
+
+	if (buf_len > bytes_remaining) {
+		bytes_to_read = bytes_remaining;
+	} else {
+		bytes_to_read = buf_len;
+	}
+
+	memcpy(buf, source->data + source->pos, bytes_to_read);
+	source->pos += bytes_to_read;
+
+	return (int) bytes_to_read;
+}
+
+// 메모리 소스에서 건너뛰기
+static int memory_source_skip(void *handle, size_t bytes)
+{
+	MemorySource *source = (MemorySource *) handle;
+	
+	if (source->pos + bytes > source->length) {
+		return 0;
+	}
+
+	source->pos += bytes;
+	return 1;
+}
+
+// 메모리 소스 닫기
+static void memory_source_close(void *handle)
+{
+	free(handle);
+}
+
+// 메모리 소스 타입
+static const LHAInputStreamType memory_source = {
+	memory_source_read,
+	memory_source_skip,
+	memory_source_close
+};
+
+// 메모리 버퍼에서 LHA 입력 스트림 생성
+LHAInputStream *lha_input_stream_from_mem(const char *data, size_t length)
+{
+	LHAInputStream *result;
+	MemorySource *source;
+
+	source = malloc(sizeof(MemorySource));
+	
+	if (source == NULL) {
+		return NULL;
+	}
+
+	source->data = (const uint8_t *) data;
+	source->length = length;
+	source->pos = 0;
+
+	result = lha_input_stream_new(&memory_source, source);
+
+	if (result == NULL) {
+		free(source);
+	}
+
+	return result;
+}
+
 LHAInputStream *lha_input_stream_from(char *filename)
 {
 	LHAInputStream *result;

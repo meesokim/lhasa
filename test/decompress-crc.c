@@ -48,11 +48,49 @@ static void decompress_file(LHAReader *reader)
 	printf("length: %i\n", (unsigned int) total);
 }
 
+// 파일을 메모리로 로드하는 함수 추가
+static char* load_file_to_memory(const char* filename, size_t* size)
+{
+    FILE* file;
+    char* buffer;
+    long file_size;
+    
+    file = fopen(filename, "rb");
+    if (file == NULL) {
+        return NULL;
+    }
+    
+    // 파일 크기 확인
+    fseek(file, 0, SEEK_END);
+    file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    // 메모리 할당
+    buffer = (char*)malloc(file_size);
+    if (buffer == NULL) {
+        fclose(file);
+        return NULL;
+    }
+    
+    // 파일 읽기
+    if (fread(buffer, 1, file_size, file) != (size_t)file_size) {
+        free(buffer);
+        fclose(file);
+        return NULL;
+    }
+    
+    fclose(file);
+    *size = (size_t)file_size;
+    return buffer;
+}
+
 int main(int argc, char *argv[])
 {
 	LHAInputStream *stream;
 	LHAReader *reader;
 	LHAFileHeader *header;
+	char* file_data;
+	size_t file_size;
 
 	if (argc < 2) {
 		printf("Usage: %s <filename>\n", argv[0]);
@@ -64,10 +102,19 @@ int main(int argc, char *argv[])
 
 	lha_arch_set_binary(stdout);
 
-	stream = lha_input_stream_from(argv[1]);
+	// 파일을 메모리로 로드
+	file_data = load_file_to_memory(argv[1], &file_size);
+	if (file_data == NULL) {
+		fprintf(stderr, "Failed to open '%s'\n", argv[1]);
+		exit(-1);
+	}
+
+	// 메모리에서 LHA 스트림 생성
+	stream = lha_input_stream_from_mem(file_data, file_size);
 
 	if (stream == NULL) {
-		fprintf(stderr, "Failed to open '%s'\n", argv[1]);
+		fprintf(stderr, "Failed to create stream from '%s'\n", argv[1]);
+		free(file_data);
 		exit(-1);
 	}
 
@@ -79,17 +126,18 @@ int main(int argc, char *argv[])
 		if (header == NULL) {
 			break;
 		}
-
+		printf("%s, %d\n", header->filename, header->length);
 		if (!strcmp(header->compress_method, LHA_COMPRESS_TYPE_DIR)) {
 			continue;
 		}
 
 		decompress_file(reader);
-		break;
+		// break;
 	}
 
 	lha_reader_free(reader);
 	lha_input_stream_free(stream);
+	free(file_data);  // 메모리 해제
 
 	return 0;
 }
